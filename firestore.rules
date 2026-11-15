@@ -1,0 +1,176 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Global Safety Net
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() >= 1 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isVerifiedUser() {
+      return isSignedIn() && request.auth.token.email_verified == true;
+    }
+
+    function isOwner(userId) {
+      return isVerifiedUser() && request.auth.uid == userId;
+    }
+
+    function isValidPreferences(prefs) {
+      return prefs is map
+        && prefs.keys().hasAll(['theme', 'soundEnabled', 'showTimerWarning', 'mentalDefaultDifficulty'])
+        && prefs.keys().hasOnly(['theme', 'soundEnabled', 'showTimerWarning', 'mentalDefaultDifficulty'])
+        && prefs.theme in ['light', 'dark']
+        && prefs.soundEnabled is bool
+        && prefs.showTimerWarning is bool
+        && prefs.mentalDefaultDifficulty in ['facil', 'normal', 'dificil'];
+    }
+
+    function isValidUserProfile(data, userId) {
+      return data.keys().hasAll([
+          'uid', 'displayName', 'photoUrl', 'elo', 'xp', 'level',
+          'totalCorrect', 'totalWrong', 'totalMatches', 'totalTimeSeconds',
+          'bestStreak', 'preferences', 'createdAt', 'updatedAt'
+        ])
+        && data.keys().hasOnly([
+          'uid', 'displayName', 'photoUrl', 'elo', 'xp', 'level',
+          'totalCorrect', 'totalWrong', 'totalMatches', 'totalTimeSeconds',
+          'bestStreak', 'preferences', 'createdAt', 'updatedAt'
+        ])
+        && data.uid == userId
+        && isValidId(data.uid)
+        && data.displayName is string
+        && data.displayName.size() >= 2
+        && data.displayName.size() <= 40
+        && data.photoUrl is string
+        && data.photoUrl.size() <= 120000
+        && data.elo is int && data.elo >= 0 && data.elo <= 3000
+        && data.xp is int && data.xp >= 0 && data.xp <= 100000000
+        && data.level is int && data.level >= 0 && data.level <= 10000
+        && data.totalCorrect is int && data.totalCorrect >= 0
+        && data.totalWrong is int && data.totalWrong >= 0
+        && data.totalMatches is int && data.totalMatches >= 0
+        && data.totalTimeSeconds is int && data.totalTimeSeconds >= 0
+        && data.bestStreak is int && data.bestStreak >= 0
+        && isValidPreferences(data.preferences)
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidMatchRecord(data, userId, matchId) {
+      return data.keys().hasAll([
+          'matchId', 'userId', 'playMode', 'subMode', 'difficulty',
+          'correctCount', 'wrongCount', 'durationSeconds',
+          'eloBefore', 'eloAfter', 'eloDelta', 'xpEarned',
+          'levelBefore', 'levelAfter', 'bestStreak', 'createdAt'
+        ])
+        && data.keys().hasOnly([
+          'matchId', 'userId', 'playMode', 'subMode', 'difficulty',
+          'correctCount', 'wrongCount', 'durationSeconds',
+          'eloBefore', 'eloAfter', 'eloDelta', 'xpEarned',
+          'levelBefore', 'levelAfter', 'bestStreak', 'createdAt'
+        ])
+        && data.matchId == matchId
+        && isValidId(data.matchId)
+        && data.userId == userId
+        && isValidId(data.userId)
+        && data.playMode in ['ranked', 'casual', 'mental', 'treino']
+        && data.subMode in ['basico', 'mental', 'equacao']
+        && data.difficulty in ['facil', 'normal', 'dificil']
+        && data.correctCount is int && data.correctCount >= 0 && data.correctCount <= 5000
+        && data.wrongCount is int && data.wrongCount >= 0 && data.wrongCount <= 5000
+        && data.durationSeconds is int && data.durationSeconds >= 0 && data.durationSeconds <= 86400
+        && data.eloBefore is int && data.eloBefore >= 0 && data.eloBefore <= 10000
+        && data.eloAfter is int && data.eloAfter >= 0 && data.eloAfter <= 3000
+        && data.eloDelta is int && data.eloDelta >= -1000 && data.eloDelta <= 5000
+        && data.xpEarned is int && data.xpEarned >= 0 && data.xpEarned <= 25000
+        && data.levelBefore is int && data.levelBefore >= 0 && data.levelBefore <= 10000
+        && data.levelAfter is int && data.levelAfter >= data.levelBefore && data.levelAfter <= 10000
+        && data.bestStreak is int && data.bestStreak >= 0 && data.bestStreak <= 5000
+        && data.createdAt == request.time;
+    }
+
+    match /users/{userId} {
+      allow get: if isValidId(userId) && isOwner(userId);
+      allow list: if false;
+
+      allow create: if isValidId(userId)
+        && isOwner(userId)
+        && isValidUserProfile(incoming(), userId)
+        && incoming().elo == 0
+        && incoming().xp == 0
+        && incoming().level == 0
+        && incoming().totalCorrect == 0
+        && incoming().totalWrong == 0
+        && incoming().totalMatches == 0
+        && incoming().totalTimeSeconds == 0
+        && incoming().bestStreak == 0
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time;
+
+      allow update: if isValidId(userId)
+        && isOwner(userId)
+        && isValidUserProfile(incoming(), userId)
+        && incoming().uid == existing().uid
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time
+        && (
+          // Action: Profile Identity Edit
+          incoming().diff(existing()).affectedKeys().hasOnly(['displayName', 'photoUrl', 'updatedAt'])
+          ||
+          // Action: Settings / Preferences Edit
+          incoming().diff(existing()).affectedKeys().hasOnly(['preferences', 'updatedAt'])
+          ||
+          // Action: Atomic Match Progression Commit
+          (
+            incoming().diff(existing()).affectedKeys().hasOnly([
+              'elo', 'xp', 'level', 'totalCorrect', 'totalWrong',
+              'totalMatches', 'totalTimeSeconds', 'bestStreak', 'updatedAt'
+            ])
+            && incoming().totalMatches == existing().totalMatches + 1
+            && incoming().xp >= existing().xp
+            && (incoming().xp - existing().xp) <= 25000
+            && (incoming().elo - existing().elo) <= 5000
+            && (existing().elo - incoming().elo) <= 1000
+            && incoming().level >= existing().level
+            && incoming().totalCorrect >= existing().totalCorrect
+            && incoming().totalWrong >= existing().totalWrong
+            && incoming().totalTimeSeconds >= existing().totalTimeSeconds
+            && incoming().bestStreak >= existing().bestStreak
+          )
+        );
+
+      allow delete: if false;
+
+      match /matches/{matchId} {
+        allow get: if isValidId(userId) && isValidId(matchId) && isOwner(userId);
+        allow list: if isValidId(userId) && isOwner(userId) && resource.data.userId == request.auth.uid;
+
+        allow create: if isValidId(userId)
+          && isValidId(matchId)
+          && isOwner(userId)
+          && isValidMatchRecord(incoming(), userId, matchId)
+          && exists(/databases/$(database)/documents/users/$(userId))
+          && getAfter(/databases/$(database)/documents/users/$(userId)).data.totalMatches
+             == get(/databases/$(database)/documents/users/$(userId)).data.totalMatches + 1;
+
+        allow update, delete: if false;
+      }
+    }
+  }
+}

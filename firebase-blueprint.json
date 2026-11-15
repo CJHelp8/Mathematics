@@ -1,0 +1,231 @@
+{
+  "entities": {
+    "UserPreferences": {
+      "title": "UserPreferences",
+      "description": "User appearance and platform preferences.",
+      "type": "object",
+      "properties": {
+        "theme": {
+          "type": "string",
+          "enum": ["light", "dark"],
+          "description": "Preferred UI color theme."
+        },
+        "soundEnabled": {
+          "type": "boolean",
+          "description": "Whether synthesized game feedback sounds are enabled."
+        },
+        "showTimerWarning": {
+          "type": "boolean",
+          "description": "Whether visual urgency pulse shows in final 10 seconds."
+        },
+        "mentalDefaultDifficulty": {
+          "type": "string",
+          "enum": ["facil", "normal", "dificil"],
+          "description": "Default difficulty for quick Mental mode."
+        }
+      },
+      "required": ["theme", "soundEnabled", "showTimerWarning", "mentalDefaultDifficulty"]
+    },
+    "UserProfile": {
+      "title": "UserProfile",
+      "description": "Competitive math player profile, progression, stats, and preferences.",
+      "type": "object",
+      "properties": {
+        "uid": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$",
+          "description": "Firebase Auth UID of the user."
+        },
+        "displayName": {
+          "type": "string",
+          "minLength": 2,
+          "maxLength": 40,
+          "description": "Player display name."
+        },
+        "photoUrl": {
+          "type": "string",
+          "minLength": 0,
+          "maxLength": 120000,
+          "description": "Optional compressed avatar data URL, or empty string if no photo."
+        },
+        "elo": {
+          "type": "integer",
+          "description": "Competitive Elo rating from 0 to 3000."
+        },
+        "xp": {
+          "type": "integer",
+          "description": "Total accumulated experience points."
+        },
+        "level": {
+          "type": "integer",
+          "description": "Current player level starting at 0 with no maximum."
+        },
+        "totalCorrect": {
+          "type": "integer",
+          "description": "Lifetime correct answers count."
+        },
+        "totalWrong": {
+          "type": "integer",
+          "description": "Lifetime wrong answers count."
+        },
+        "totalMatches": {
+          "type": "integer",
+          "description": "Lifetime completed matches count."
+        },
+        "totalTimeSeconds": {
+          "type": "integer",
+          "description": "Lifetime play time in seconds."
+        },
+        "bestStreak": {
+          "type": "integer",
+          "description": "Highest consecutive correct answers streak."
+        },
+        "preferences": {
+          "$ref": "#/entities/UserPreferences",
+          "description": "User settings and preferences."
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server timestamp of account creation."
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server timestamp of last update."
+        }
+      },
+      "required": [
+        "uid",
+        "displayName",
+        "photoUrl",
+        "elo",
+        "xp",
+        "level",
+        "totalCorrect",
+        "totalWrong",
+        "totalMatches",
+        "totalTimeSeconds",
+        "bestStreak",
+        "preferences",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    "MatchRecord": {
+      "title": "MatchRecord",
+      "description": "Immutable record of a completed math match.",
+      "type": "object",
+      "properties": {
+        "matchId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$",
+          "description": "Unique match identifier."
+        },
+        "userId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$",
+          "description": "Owner Firebase Auth UID."
+        },
+        "playMode": {
+          "type": "string",
+          "enum": ["ranked", "casual", "mental", "treino"],
+          "description": "Top-level mode selected by player."
+        },
+        "subMode": {
+          "type": "string",
+          "enum": ["basico", "mental", "equacao"],
+          "description": "Math challenge sub-mode."
+        },
+        "difficulty": {
+          "type": "string",
+          "enum": ["facil", "normal", "dificil"],
+          "description": "Difficulty tier."
+        },
+        "correctCount": {
+          "type": "integer",
+          "description": "Number of correct answers in the match."
+        },
+        "wrongCount": {
+          "type": "integer",
+          "description": "Number of wrong or timed-out answers in the match."
+        },
+        "durationSeconds": {
+          "type": "integer",
+          "description": "Actual duration of the match in seconds."
+        },
+        "eloBefore": {
+          "type": "integer",
+          "description": "Player Elo before match."
+        },
+        "eloAfter": {
+          "type": "integer",
+          "description": "Player Elo after match."
+        },
+        "eloDelta": {
+          "type": "integer",
+          "description": "Net Elo change in this match."
+        },
+        "xpEarned": {
+          "type": "integer",
+          "description": "XP earned in this match."
+        },
+        "levelBefore": {
+          "type": "integer",
+          "description": "Player level before match."
+        },
+        "levelAfter": {
+          "type": "integer",
+          "description": "Player level after match."
+        },
+        "bestStreak": {
+          "type": "integer",
+          "description": "Best answer streak during the match."
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server timestamp when match was recorded."
+        }
+      },
+      "required": [
+        "matchId",
+        "userId",
+        "playMode",
+        "subMode",
+        "difficulty",
+        "correctCount",
+        "wrongCount",
+        "durationSeconds",
+        "eloBefore",
+        "eloAfter",
+        "eloDelta",
+        "xpEarned",
+        "levelBefore",
+        "levelAfter",
+        "bestStreak",
+        "createdAt"
+      ]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": {
+        "$ref": "#/entities/UserProfile"
+      },
+      "description": "Private player profile, progression stats, and preferences."
+    },
+    "/users/{userId}/matches/{matchId}": {
+      "schema": {
+        "$ref": "#/entities/MatchRecord"
+      },
+      "description": "Immutable match history records belonging to the player."
+    }
+  }
+}

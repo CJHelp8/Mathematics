@@ -1,0 +1,6 @@
+{
+  "name": "Axioma",
+  "description": "Plataforma competitiva e gamificada de matemática com modos Ranked, Casual, Mental, Treino, progressão de Elo e sistema de ensino interativo.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
